@@ -358,7 +358,7 @@ Sub file_save()
     
      'Saves on sharepoint GM&S .xlsx
     Workbooks(ThisWorkbook.Name).SaveAs Filename:= _
-        "\\sites.abb.com\sites\EPMarketingandSales\Finance\Global MS\" & _
+        "\\xxx.xxx\sites\EPMarketingandSales\Finance\Global MS\" & _
         Worksheets("control panel").Range("AA22") & "\Daily Demand Orders\" & _
         Worksheets("control panel").Range("AA21") _
         & "\" & Worksheets("control panel").Range("AA19"), _
