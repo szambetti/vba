@@ -1,2 +1,2 @@
 # vba
-Small applications - using SAP APIs etc
+Small VB/VBA applications using SAP APIs etc
