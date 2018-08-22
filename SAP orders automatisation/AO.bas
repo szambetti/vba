@@ -1,34 +1,66 @@
+Attribute VB_Name = "AO"
 '(declarations)
-Public custom_cutoff, cutoff As Range, ctrl As Worksheet, xl As Excel.Application, wb As Workbook
-Private pt2, pt As PivotTable, progressbar, main_loop, notcorrect As String, lresult As Long
+Public custom_cutoff, cutoff, statusbar_rng, progress_rng As range, ctrl, tables As Worksheet, xl As Excel.Application, wb As Workbook
+Public pt2, pt As PivotTable
+Private progressbar, main_loop, input_cutoff, k As Integer, notcorrect As String, lResult As Long
 Dim state, inputsave As Variant
-' x += 1
-Public Function Inc(ByRef x As Range) As Integer
-   x.Value = x.Value + 1
+'functions
+Public Function Inc(ByRef x As Integer) As Integer
+   x = x + 1
 End Function
-Sub main()
+Public Sub infostatus(ByRef k As Integer)
+    xl.ScreenUpdating = True
+    Inc k
+    With tables
+        .Activate
+        .range("A1").Select
+    End With
+    Let progressbar = k
+    Let progress_rng.Value = progressbar
+    statusbar_rng.Value = state(progressbar - 1)
+    DoEvents
+    xl.ScreenUpdating = False
+End Sub
+Public Sub main()
 
 'declare above
 Set xl = Excel.Application
+xl.ScreenUpdating = False
 Set wb = ThisWorkbook
 Set ctrl = ThisWorkbook.Worksheets("control panel")
+Set tables = ThisWorkbook.Worksheets("Daily_Tables")
 Set custom_cutoff = ctrl.[custom_cutoff]
 Set cutoff = ctrl.[cutoff]
+Set statusbar_rng = tables.[state_rng]
+Set progress_rng = tables.[progressbar_rng]
 Set pt = wb.sheets("Pivot_Daily Orders").PivotTables("BigPivot")
 Set pt2 = wb.sheets("Pivot_Daily Orders").PivotTables("SmallPivot")
-state = Array("Running for x = ", "Updating ATLAS", _
-            "Refreshing Filters", "Changing pivots", "Finished")
-main_loop = Array(1, 2)
+Let state = Array("Running...", "Updating ATLAS", _
+            "Refreshing Filters", "Changing pivots", "Saving", "Finished")
+Let main_loop = Array(1, 2)
+    
+'begin user interface
+Let k = 0
+Call infostatus(k)
 
+' get custom cutoff from user
+InputBox:
+Let input_cutoff = InputBox("Hello! Would you like to run the report for how many days ago?" & vbNewLine & vbNewLine & "Please insert cutoff (defaults to 3):", "Daily orders generator", 3)
+If input_cutoff = "" Then
+    input_cutoff = 0
+    inputquestion = MsgBox("Warning!" & vbNewLine & "You selected a cutoff of 0 days.. " & vbNewLine & "Is this correct? (Cancel to exit)", vbYesNoCancel)
+        Select Case inputquestion
+            Case vbYes 'do nothing
+            Case vbCancel
+                Exit Sub
+            Case Else
+                GoTo InputBox
+        End Select
+End If
+Let custom_cutoff.Value = input_cutoff
 
-'####################
-'#   MACRO BEGIN    #
-'####################
-
-xl.ScreenUpdating = False
-
-'if a custom cutoff has been speficied cutoff = custom_cutoff
-  If custom_cutoff = "" Then
+  'if a custom cutoff has been speficied cutoff = custom_cutoff
+  If custom_cutoff = 3 Then
       cutoff = 3
   Else
       cutoff = custom_cutoff.Value
@@ -38,79 +70,100 @@ xl.ScreenUpdating = False
   'This the progressbar/cutoff process.
     If main_loop(i) = 1 Then
         With ctrl
-            .Activate
-            Inc cutoff
+            cutoff = cutoff + 1
             .[cutoff].Value = cutoff
-            .Range("AC32") = state(i) & cutoff
-            'copies only cutoff date
+            'copies only cutoff date and saved on
             .[today_x].copy
-            .[today_cp].PasteSpecial xlPasteValues
+            .[today_pasted].PasteSpecial xlPasteValues
+            .range("AF8:AF11").copy
+            .range("AG8").PasteSpecial xlPasteValues
           End With
         With xl
             .CutCopyMode = False
-            .StatusBar = "Running. Please stay idle..."
+            .statusbar = "Running. Please stay idle..."
             DoEvents
         End With
+        Call infostatus(k)
         'update SAP data maybe impplement call instead of variable to free up memory
         Call Application.Run("SAPExecuteCommand", "RefreshData", "ALL")
         DoEvents
     ElseIf main_loop(i) = 2 Then
         'need to cancel previous inc cutoff
-        If custom_cutoff = "" Then
+        If custom_cutoff = 3 Then
             cutoff = 3
         Else
             cutoff = custom_cutoff.Value
         End If
-        xl.ScreenUpdating = True
         With ctrl
-          .Activate
           .[cutoff].Value = cutoff
-          .Range("AC32") = state(UBound(state)) & cutoff
         End With
-        xl.ScreenUpdating = False
         Call copy
     Else
-        MsgBox "Error on procedure " & main_loop(i)
+        MsgBox "Error on loop " & main_loop(i)
     End If
-
+    
     'call SAP filter refresh sub
     Call loop_filters
-
+    
     'refresh pivots'
     pt.RefreshTable
     pt2.RefreshTable
     DoEvents
+    
+    If xl.WorksheetFunction.IsNA(tables.[total_allmarkets_mtd]) = True Or _
+    xl.WorksheetFunction.IsError(tables.[total_allmarkets_mtd]) = True Then
+        GoTo NAError
+    End If
 
   Next i
 
-With xl
-    .ScreenUpdating = True
-    .StatusBar = False
-End With
+  Call infostatus(k)
+
+' goto references
 
 Saving:
-
-  inputsave = MsgBox("Would you like to save on ShareDrive," & vbNewLine & "SharePoint EPMS and on your desktop this report?", vbYesNo, "DAILY ORDERS")
-  If inputsave = vbYes Then
-      Call file_save
-      DoEvents
-      GoTo OpenChrome
-  ElseIf inputsave = vbNo Then End If
-
-Exit Sub
+    inputsave = MsgBox("Report generated." & vbNewLine & vbNewLine & _
+    "Would you like to save on ShareDrive," & vbNewLine & "SharePoint EPMS and on your desktop this report?", _
+    vbYesNo, "Daily orders generator")
+        Select Case inputsave
+            Case vbYes
+                With xl
+                    .ScreenUpdating = True
+                    .statusbar = False
+                End With
+                Call file_save
+                Call infostatus(5)
+                DoEvents
+                GoTo OpenChrome
+                Exit Sub
+            Case vbNo
+                'do nothing
+        End Select
+    Call infostatus(5)
+    With xl
+        .ScreenUpdating = True
+        .statusbar = False
+    End With
+    Exit Sub
 
 OpenChrome:
+    Dim open_chrome As Variant
+    Dim Path As String
+    Path = "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
+    open_chrome = Shell(Path, vbNormalFocus)
+    Exit Sub
 
-Dim x As Variant
-Dim Path As String
+ErrInput:
+    MsgBox ("You did not select a cutoff and the macro stopped.")
+    Exit Sub
 
-Path = "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
-
-x = Shell(Path, vbNormalFocus)
+NAError:
+     MsgBox ("Looks like there some new reporting unit reporting in ATLAS (or even an unknown mistake in ATLAS source worksheets)." & vbNewLine & vbNewLine & "Please add it in the control panel, save the template and rerun the macro.")
+     Exit Sub
 End Sub
-Sub loop_filters()
+Private Sub loop_filters()
 
-'code for this sub forked from Reagan MacDonald. https://blogs.sap.com/2017/02/03/analysis-for-office-variables-and-filters-via-vba/
+'forked from Reagan MacDonald. https://blogs.sap.com/2017/02/03/analysis-for-office-variables-and-filters-via-vba/
 
 ' Set up some variables first
 Dim result, mytable As ListObject
@@ -159,7 +212,7 @@ For mainloop = LBound(paramatersarray) To UBound(paramatersarray)
 
    ' If we find a VARIABLE field, action it.
    If Field_Type = "VARIABLE" Then
-
+   
        result = Application.Run("SAPSetVariable", Field_Field, Field_Value, "INPUT_STRING", Field_Datasource)
 
    End If
@@ -189,10 +242,6 @@ For mainloop = LBound(paramatersarray) To UBound(paramatersarray)
 
        Next i
 
-       ' We are all done with the filters for this specific loop Now refresh whats on screen
-
-       Call Application.Run("SAPSetRefreshBehaviour", "On")
-
    End If
 
    ' make a note of the loop we just finished as we will check it in the next loop
@@ -201,38 +250,29 @@ For mainloop = LBound(paramatersarray) To UBound(paramatersarray)
 
 Next mainloop
 
+'refresh whats on screen
+Call Application.Run("SAPSetRefreshBehaviour", "On")
 
 End Sub
-
-Sub copy()
+Private Sub copy()
 
     'copy mtd table from yesterday to dtd
-    sheets("Daily Orders_3P_MTD").Range("B20:EA242").copy
-    sheets("Daily Orders_3P_DTD").Range("B238").PasteSpecial xlPasteValues
-
+    sheets("Daily Orders_3P_MTD").range("B20:EA242").copy
+    sheets("Daily Orders_3P_DTD").range("B238").PasteSpecial xlPasteValues
+    
     'copy cutoff date
     With ctrl
+        .range("AF8:AF11").copy
+        .range("AG8").PasteSpecial xlPasteValues
         .[today_x].copy
-        .[today_cp].PasteSpecial xlPasteValues
+        .[today_pasted].PasteSpecial xlPasteValues
     End With
-
+    
     xl.CutCopyMode = False
 
 End Sub
-Sub file_save()
-
-    'still using deprecated code
-
-    xl.DisplayAlerts = False
-    xl.ScreenUpdating = False
-
-    'Save this workbook on ShareDrive .xlsb
-    wb.SaveAs Filename:=Left(ThisWorkbook.Path, 77) _
-    & "\" & ctrl.Range("AA22") _
-    & "\" & ctrl.Range("AA21") _
-    & "\" & ctrl.Range("AA20"), _
-    FileFormat:=xlExcel12, CreateBackup:=False
-
+Private Sub file_save()
+    
     'State sheet list (array) to be hidden before saving. If sheets names have been changed, just update within the array below
     Dim sheet_list
     sheet_list = Array( _
@@ -247,39 +287,42 @@ Sub file_save()
     "Instructions", _
     "control panel" _
     )
-
+    
+    Application.DisplayAlerts = False
+    Application.ScreenUpdating = False
+    
+    'save template
+    ThisWorkbook.Save
+    
+    'Save this workbook on ShareDrive .xlsb
+    Workbooks(ThisWorkbook.Name).SaveAs Filename:= _
+    ctrl.range("AA22"), _
+    FileFormat:=50, CreateBackup:=False
+    
     'Get path to user's desktop - this is done through powershell
-    Dim Path As String
-    desktop_path = CreateObject("WScript.Shell").SpecialFolders("Desktop") & "\"
-
-    'Store this workbookname in variable wb_name // UNUSED
-    Dim wb_name As String
-    wb_name = wb.Name
+    'Dim Path As String
+    'desktop_path = CreateObject("WScript.Shell").SpecialFolders("Desktop") & "\"
 
     'Loop for hiding sheets, usually this should remain unchanged
     For i = LBound(sheet_list) To UBound(sheet_list)
         sheets(sheet_list(i)).Visible = False
     Next i
-
-    Worksheets("Daily_Tables").Range("A1").Select
+    
+    tables.range("A1").Select
     Columns("M").EntireColumn.Hidden = True
-
+    Columns("Q").EntireColumn.Hidden = True
+    
      'Saves on sharepoint GM&S .xlsx
-    Workbooks(wb.Name).SaveAs Filename:= _
-        "\\sites.abb.com\sites\EPMarketingandSales\Finance\Global MS\" & _
-        ctrl.Range("AA22") & "\Daily Demand Orders\" & _
-        ctrl.Range("AA21") _
-        & "\" & ctrl.Range("AA19"), _
+    Workbooks(ThisWorkbook.Name).SaveAs Filename:= _
+        ctrl.range("AA23"), _
         FileFormat:=xlOpenXMLWorkbook, CreateBackup:=False
-
+    
     'Save on users's desktop .xlsx
-    Workbooks(wb.Name).SaveAs Filename:=desktop_path & ctrl.Range("AA19") _
-    , FileFormat:=xlOpenXMLWorkbook, CreateBackup:=False
-
+    'Workbooks(ThisWorkbook.Name).SaveAs Filename:=desktop_path & Worksheets("control panel").range("AA19") _
+    ', FileFormat:=xlOpenXMLWorkbook, CreateBackup:=False
+    
     Application.ScreenUpdating = True
     Application.DisplayAlerts = True
     
-    MsgBox "This is the version saved on your desktop." & vbNewLine & _
-    "I've also saved the original on the ShareDrive and a copy on the SharePoint." _
-    & vbNewLine & " " & vbNewLine & "You can now send by mail the file on you desktop."
+    MsgBox "Saving completed.. the file now open is the file on the M&S Sharepoint"
 End Sub
