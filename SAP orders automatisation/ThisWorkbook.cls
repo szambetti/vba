@@ -8,7 +8,7 @@ Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = True
 'As soon as the workbook is opened, it checks for the Analysis COMAddIn.
-'If it finds Analysis and thinks it isn’t enabled, it enables it.
+'If it finds Analysis and thinks it isnâ€™t enabled, it enables it.
 'If it finds Analysis and thinks its already enabled, it disables it first then re-enables it to make doubly sure its going to function ok.'
 
 Private Sub Workbook_Open()
@@ -18,6 +18,8 @@ ThisWorkbook.Worksheets("Daily_Tables").Activate
 range("A1").Select
 range("G4") = "Enabling analysis..."
 range("D5") = 0
+DoEvents
+Application.ScreenUpdating = False
 
 Dim lResult As Long
 
@@ -36,10 +38,11 @@ Dim lResult As Long
                 addin.Connect = False
                 addin.Connect = True
             End If
-            
+
         End If
 
     Next
+Application.ScreenUpdating = True
 
 range("G4") = "Idle"
 range("d5") = 0.05
