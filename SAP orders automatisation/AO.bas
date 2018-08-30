@@ -38,7 +38,7 @@ Set pt2 = wb.sheets("Pivot_Daily Orders").PivotTables("SmallPivot")
 Let state = Array("Running...", "Updating ATLAS", _
             "Refreshing Filters", "Changing pivots", "Saving", "Finished")
 Let main_loop = Array(1, 2)
-    
+
 'begin user interface
 Let k = 0
 Call infostatus(k)
@@ -101,21 +101,33 @@ Let custom_cutoff.Value = input_cutoff
     Else
         MsgBox "Error on loop " & main_loop(i)
     End If
-    
+
     'call SAP filter refresh sub
     Call loop_filters
-    
+
     'refresh pivots'
     pt.RefreshTable
     pt2.RefreshTable
     DoEvents
-    
+
     If xl.WorksheetFunction.IsNA(tables.[total_allmarkets_mtd]) = True Or _
     xl.WorksheetFunction.IsError(tables.[total_allmarkets_mtd]) = True Then
         GoTo NAError
     End If
 
   Next i
+
+  xl.ScreenUpdating = True
+
+  weekly_msg = MsgBox("Would you like to run a weekly orders update? (Do NOT run if an update is not out)", vbYesNo)
+    If weekly_msg = vbYes Then
+        weekly_msg_confirm = MsgBox("Are you sure? (This feature is still under testing)", vbYesNo)
+            If weekly_msg_confirm = vbYes Then
+                Call weekly
+            Else: GoTo Saving
+            End If
+    Else: GoTo Saving
+    End If
 
   Call infostatus(k)
 
@@ -158,7 +170,7 @@ ErrInput:
     Exit Sub
 
 NAError:
-     MsgBox ("Looks like there some new reporting unit reporting in ATLAS (or even an unknown mistake in ATLAS source worksheets)." & vbNewLine & vbNewLine & "Please add it in the control panel, save the template and rerun the macro.")
+     MsgBox ("Looks like there is some new reporting unit reporting in ATLAS (or even an unknown mistake in ATLAS source worksheets)." & vbNewLine & vbNewLine & "Please add it in the control panel, save the template and rerun the macro.")
      Exit Sub
 End Sub
 Private Sub loop_filters()
@@ -212,7 +224,7 @@ For mainloop = LBound(paramatersarray) To UBound(paramatersarray)
 
    ' If we find a VARIABLE field, action it.
    If Field_Type = "VARIABLE" Then
-   
+
        result = Application.Run("SAPSetVariable", Field_Field, Field_Value, "INPUT_STRING", Field_Datasource)
 
    End If
@@ -259,7 +271,7 @@ Private Sub copy()
     'copy mtd table from yesterday to dtd
     sheets("Daily Orders_3P_MTD").range("B20:EA242").copy
     sheets("Daily Orders_3P_DTD").range("B238").PasteSpecial xlPasteValues
-    
+
     'copy cutoff date
     With ctrl
         .range("AF8:AF11").copy
@@ -267,62 +279,93 @@ Private Sub copy()
         .[today_x].copy
         .[today_pasted].PasteSpecial xlPasteValues
     End With
-    
+
     xl.CutCopyMode = False
 
 End Sub
-Private Sub file_save()
-    
+Public Sub file_save()
+
     'State sheet list (array) to be hidden before saving. If sheets names have been changed, just update within the array below
-    Dim sheet_list
-    sheet_list = Array( _
-    "Recon_ATLAS Supply_Weekly", _
-    "Recon_ATLAS Demand_Weekly", _
-    "RepUnits missing_Weekly", _
-    "Pivot_Daily Orders Supply", _
-    "Pivot_Daily Orders", _
-    "ATLAS_Data", _
-    "ATLAS notassig Demand Coun", _
-    "Days 2018", _
-    "Instructions", _
-    "control panel" _
-    )
-    
+    Dim sheet_list As range
+    Set sheet_list = Worksheets("control panel").[hide_sheets_list]
+    Dim sheet_list_val As Variant
+    sheet_list_val = sheet_list.Value
+
+    Worksheets("Daily_Tables").Activate
+    range("A1").Select
+    DoEvents
+
     Application.DisplayAlerts = False
     Application.ScreenUpdating = False
-    
+
     'save template
     ThisWorkbook.Save
-    
+
     'Save this workbook on ShareDrive .xlsb
     Workbooks(ThisWorkbook.Name).SaveAs Filename:= _
-    ctrl.range("AA22"), _
+    Worksheets("control panel").range("AA22"), _
     FileFormat:=50, CreateBackup:=False
-    
+
     'Get path to user's desktop - this is done through powershell
     'Dim Path As String
     'desktop_path = CreateObject("WScript.Shell").SpecialFolders("Desktop") & "\"
 
     'Loop for hiding sheets, usually this should remain unchanged
-    For i = LBound(sheet_list) To UBound(sheet_list)
-        sheets(sheet_list(i)).Visible = False
-    Next i
-    
-    tables.range("A1").Select
+    For Each cl In sheet_list_val
+        If cl <> "" Then
+            sheets(cl).Visible = False
+        End If
+    Next cl
+
+    Worksheets("Daily_Tables").range("A1").Select
     Columns("M").EntireColumn.Hidden = True
     Columns("Q").EntireColumn.Hidden = True
-    
+
      'Saves on sharepoint GM&S .xlsx
     Workbooks(ThisWorkbook.Name).SaveAs Filename:= _
-        ctrl.range("AA23"), _
+        Worksheets("control panel").range("AA23"), _
         FileFormat:=xlOpenXMLWorkbook, CreateBackup:=False
-    
+
     'Save on users's desktop .xlsx
     'Workbooks(ThisWorkbook.Name).SaveAs Filename:=desktop_path & Worksheets("control panel").range("AA19") _
     ', FileFormat:=xlOpenXMLWorkbook, CreateBackup:=False
-    
+
     Application.ScreenUpdating = True
     Application.DisplayAlerts = True
-    
+
     MsgBox "Saving completed.. the file now open is the file on the M&S Sharepoint"
+End Sub
+Private Sub weekly()
+
+Dim weekly_rng As range
+Set weekly_rng = ctrl.[period_weekly]
+
+If Right(weekly_rng.Value, 1) = 1 Then
+    weekly_rng = Left(weekly_rng.Value, 6) & 2
+    [weekly_period] = range("AG11").Value & range("AG8").Value - 1 & " A"
+    [weekly_period_item] = "Orders received 3rd part."
+
+    ElseIf Right(weekly_rng.Value, 1) = 2 Then
+        weekly_rng = Left(weekly_rng.Value, 6) & 3
+
+    ElseIf Right(weekly_rng.Value, 1) = 3 Then
+        weekly_rng = Left(weekly_rng.Value, 6) & 4
+
+    ElseIf Right(weekly_rng.Value, 1) = 4 Then
+        weekly_rng = range("AG11").Value & range("AG8").Value & " W1"
+        [weekly_period] = range("AG11").Value & range("AG8").Value - 1 & " W4"
+        [weekly_period_item] = "Orders received gross 3rd part."
+    Else
+        MsgBox "An error occured in the weekly update macro, could not parse period"
+End If
+
+ThisWorkbook.Connections(ctrl.range("AG10") & "_weekly").Refresh
+
+'using async update for query data
+Application.CalculateUntilAsyncQueriesDone
+Application.CalculateFullRebuild
+Application.CalculateUntilAsyncQueriesDone
+
+MsgBox "Weekly orders refreshed"
+
 End Sub
