@@ -1,10 +1,14 @@
 Attribute VB_Name = "AO"
-'(declarations)
-Public custom_cutoff, cutoff, statusbar_rng, progress_rng As range, ctrl, tables As Worksheet, xl As Excel.Application, wb As Workbook
-Public pt2, pt As PivotTable
-Private progressbar, main_loop, input_cutoff, k As Integer, notcorrect As String, lResult As Long
+'declarations
+
+'global variables
+Public uinput As Integer
+
+'local variables
+Private custom_cutoff, cutoff, statusbar_rng, progress_rng As range, ctrl, tables As Worksheet, xl As Excel.Application, wb As Workbook
+Private pt2, pt As PivotTable, progressbar, main_loop, input_cutoff, k As Integer, notcorrect As String, lResult As Long
 Dim state, inputsave As Variant
-'functions
+'+= type function
 Public Function Inc(ByRef x As Integer) As Integer
    x = x + 1
 End Function
@@ -13,11 +17,13 @@ Public Sub infostatus(ByRef k As Integer)
     Inc k
     With tables
         .Activate
-        .range("A1").Select
+        .[tables_A1].Select
     End With
     Let progressbar = k
     Let progress_rng.Value = progressbar
     statusbar_rng.Value = state(progressbar - 1)
+    DoEvents
+    DoEvents
     DoEvents
     xl.ScreenUpdating = False
 End Sub
@@ -38,7 +44,7 @@ Set pt2 = wb.sheets("Pivot_Daily Orders").PivotTables("SmallPivot")
 Let state = Array("Running...", "Updating ATLAS", _
             "Refreshing Filters", "Changing pivots", "Saving", "Finished")
 Let main_loop = Array(1, 2)
-
+    
 'begin user interface
 Let k = 0
 Call infostatus(k)
@@ -75,8 +81,8 @@ Let custom_cutoff.Value = input_cutoff
             'copies only cutoff date and saved on
             .[today_x].copy
             .[today_pasted].PasteSpecial xlPasteValues
-            .range("AF8:AF11").copy
-            .range("AG8").PasteSpecial xlPasteValues
+            .[today_x_copy].copy
+            .[saved_month].PasteSpecial xlPasteValues
           End With
         With xl
             .CutCopyMode = False
@@ -101,24 +107,24 @@ Let custom_cutoff.Value = input_cutoff
     Else
         MsgBox "Error on loop " & main_loop(i)
     End If
-
+    
     'call SAP filter refresh sub
     Call loop_filters
-
+    
     'refresh pivots'
     pt.RefreshTable
     pt2.RefreshTable
     DoEvents
-
+    
     If xl.WorksheetFunction.IsNA(tables.[total_allmarkets_mtd]) = True Or _
     xl.WorksheetFunction.IsError(tables.[total_allmarkets_mtd]) = True Then
         GoTo NAError
     End If
 
   Next i
-
+  
   xl.ScreenUpdating = True
-
+  
   weekly_msg = MsgBox("Would you like to run a weekly orders update? (Do NOT run if an update is not out)", vbYesNo)
     If weekly_msg = vbYes Then
         weekly_msg_confirm = MsgBox("Are you sure? (This feature is still under testing)", vbYesNo)
@@ -145,13 +151,11 @@ Saving:
                 End With
                 Call file_save
                 Call infostatus(5)
-                DoEvents
                 GoTo OpenChrome
                 Exit Sub
-            Case vbNo
-                'do nothing
+            Case Else
+                Call infostatus(5)
         End Select
-    Call infostatus(5)
     With xl
         .ScreenUpdating = True
         .statusbar = False
@@ -224,7 +228,7 @@ For mainloop = LBound(paramatersarray) To UBound(paramatersarray)
 
    ' If we find a VARIABLE field, action it.
    If Field_Type = "VARIABLE" Then
-
+   
        result = Application.Run("SAPSetVariable", Field_Field, Field_Value, "INPUT_STRING", Field_Datasource)
 
    End If
@@ -271,41 +275,43 @@ Private Sub copy()
     'copy mtd table from yesterday to dtd
     sheets("Daily Orders_3P_MTD").range("B20:EA242").copy
     sheets("Daily Orders_3P_DTD").range("B238").PasteSpecial xlPasteValues
-
+    
     'copy cutoff date
     With ctrl
-        .range("AF8:AF11").copy
-        .range("AG8").PasteSpecial xlPasteValues
+        .[today_x_copy].copy
+        .[saved_month].PasteSpecial xlPasteValues
         .[today_x].copy
         .[today_pasted].PasteSpecial xlPasteValues
     End With
-
+    
     xl.CutCopyMode = False
 
 End Sub
 Public Sub file_save()
 
+    Application.ScreenUpdating = False
+        
     'State sheet list (array) to be hidden before saving. If sheets names have been changed, just update within the array below
     Dim sheet_list As range
     Set sheet_list = Worksheets("control panel").[hide_sheets_list]
     Dim sheet_list_val As Variant
     sheet_list_val = sheet_list.Value
-
+    
     Worksheets("Daily_Tables").Activate
-    range("A1").Select
+    [tables_A1].Select
     DoEvents
-
+    
     Application.DisplayAlerts = False
     Application.ScreenUpdating = False
-
+    
     'save template
     ThisWorkbook.Save
-
+    
     'Save this workbook on ShareDrive .xlsb
     Workbooks(ThisWorkbook.Name).SaveAs Filename:= _
-    Worksheets("control panel").range("AA22"), _
+    Worksheets("control panel").[shared_path_name], _
     FileFormat:=50, CreateBackup:=False
-
+    
     'Get path to user's desktop - this is done through powershell
     'Dim Path As String
     'desktop_path = CreateObject("WScript.Shell").SpecialFolders("Desktop") & "\"
@@ -316,56 +322,62 @@ Public Sub file_save()
             sheets(cl).Visible = False
         End If
     Next cl
-
+    
     Worksheets("Daily_Tables").range("A1").Select
     Columns("M").EntireColumn.Hidden = True
     Columns("Q").EntireColumn.Hidden = True
-
+    
      'Saves on sharepoint GM&S .xlsx
     Workbooks(ThisWorkbook.Name).SaveAs Filename:= _
-        Worksheets("control panel").range("AA23"), _
+        Worksheets("control panel").[GMS_SP], _
         FileFormat:=xlOpenXMLWorkbook, CreateBackup:=False
-
+    
     'Save on users's desktop .xlsx
     'Workbooks(ThisWorkbook.Name).SaveAs Filename:=desktop_path & Worksheets("control panel").range("AA19") _
     ', FileFormat:=xlOpenXMLWorkbook, CreateBackup:=False
-
+    
+    tables.Activate
     Application.ScreenUpdating = True
     Application.DisplayAlerts = True
-
+    
     MsgBox "Saving completed.. the file now open is the file on the M&S Sharepoint"
 End Sub
 Private Sub weekly()
 
+xl.ScreenUpdating = False
+
 Dim weekly_rng As range
-Set weekly_rng = ctrl.[period_weekly]
+Set weekly_rng = [period_weekly]
 
 If Right(weekly_rng.Value, 1) = 1 Then
     weekly_rng = Left(weekly_rng.Value, 6) & 2
-    [weekly_period] = range("AG11").Value & range("AG8").Value - 1 & " A"
+    [weekly_period] = [saved_year_short].Value & [saved_month].Value - 1 & " A"
     [weekly_period_item] = "Orders received 3rd part."
-
+    
     ElseIf Right(weekly_rng.Value, 1) = 2 Then
         weekly_rng = Left(weekly_rng.Value, 6) & 3
-
+        
     ElseIf Right(weekly_rng.Value, 1) = 3 Then
         weekly_rng = Left(weekly_rng.Value, 6) & 4
-
+        
     ElseIf Right(weekly_rng.Value, 1) = 4 Then
-        weekly_rng = range("AG11").Value & range("AG8").Value & " W1"
-        [weekly_period] = range("AG11").Value & range("AG8").Value - 1 & " W4"
+        weekly_rng = [saved_year_short].Value & [saved_month].Value & " W1"
+        [weekly_period] = [saved_year_short].Value & [saved_month].Value - 1 & " W4"
         [weekly_period_item] = "Orders received gross 3rd part."
     Else
         MsgBox "An error occured in the weekly update macro, could not parse period"
 End If
 
-ThisWorkbook.Connections(ctrl.range("AG10") & "_weekly").Refresh
+ThisWorkbook.Connections([saved_year].Value & "_weekly").Refresh
 
 'using async update for query data
-Application.CalculateUntilAsyncQueriesDone
-Application.CalculateFullRebuild
-Application.CalculateUntilAsyncQueriesDone
+With xl
+    .CalculateUntilAsyncQueriesDone
+    .CalculateFullRebuild
+    .CalculateUntilAsyncQueriesDone
+    .ScreenUpdating = True
+End With
 
+tables.Activate
 MsgBox "Weekly orders refreshed"
-
 End Sub

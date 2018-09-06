@@ -1,2 +1,3 @@
-New_Month.bas
-main.vba
+#ignore following files
+monthuserform.frx
+startform.frx
