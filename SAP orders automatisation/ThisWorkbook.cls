@@ -8,15 +8,16 @@ Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = True
 'As soon as the workbook is opened, it checks for the Analysis COMAddIn.
-'If it finds Analysis and thinks it isn’t enabled, it enables it.
+'If it finds Analysis and thinks it isnâ€™t enabled, it enables it.
 'If it finds Analysis and thinks its already enabled, it disables it first then re-enables it to make doubly sure its going to function ok.'
 Private Sub Workbook_Open()
 ThisWorkbook.Worksheets("Daily_Tables").Activate
 [tables_A1].Select
 
-'if template is stored in its template folder then being macro run
-'else exit
-If ThisWorkbook.Path Like "*Template*" Then
+'Temp file is creaded by launch.exe in Daily orders Source file directory
+'if this file exists, then it must mean user has opened this file through the launcher
+'if so then start generation prcodedure
+If Len(Dir(ThisWorkbook.Path & "\" & "$start_macro.sz")) <> 0 Then
 
     Application.statusbar = "Enabling analysis... please wait"
     [state_rng] = "Enabling analysis..."
@@ -44,9 +45,9 @@ Application.ScreenUpdating = True
 [state_rng] = "Idle"
 [progressbar_rng] = 0.05
 Application.statusbar = False
-    
+
     Call start_form(False)
-    
+
     If uinput = 0 Then
         Call start_form(True)
         Call main

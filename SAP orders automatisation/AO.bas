@@ -44,17 +44,20 @@ Set pt2 = wb.sheets("Pivot_Daily Orders").PivotTables("SmallPivot")
 Let state = Array("Running...", "Updating ATLAS", _
             "Refreshing Filters", "Changing pivots", "Saving", "Finished")
 Let main_loop = Array(1, 2)
-    
+
 'begin user interface
 Let k = 0
 Call infostatus(k)
 
 ' get custom cutoff from user
 InputBox:
-Let input_cutoff = InputBox("Hello! Would you like to run the report for how many days ago?" & vbNewLine & vbNewLine & "Please insert cutoff (defaults to 3):", "Daily orders generator", 3)
-If input_cutoff = "" Then
+Let input_cutoff = InputBox("Hello! Would you like to run the report for how many days ago?" & _
+vbNewLine & vbNewLine & "Please insert cutoff (defaults to 3):", "Daily orders generator", 3)
+If (input_cutoff = "" Or input_cutoff = 0) Then
     input_cutoff = 0
-    inputquestion = MsgBox("Warning!" & vbNewLine & "You selected a cutoff of 0 days.. " & vbNewLine & "Is this correct? (Cancel to exit)", vbYesNoCancel)
+    inputquestion = MsgBox("Warning!" & vbNewLine & "You selected a cutoff of 0 days." & vbNewLine & _
+    "The report will be run for today and data may not be available yet." _
+    & vbNewLine & "Is this correct? (Cancel to exit generation)", vbYesNoCancel, "?")
         Select Case inputquestion
             Case vbYes 'do nothing
             Case vbCancel
@@ -90,7 +93,7 @@ Let custom_cutoff.Value = input_cutoff
             DoEvents
         End With
         Call infostatus(k)
-        'update SAP data maybe impplement call instead of variable to free up memory
+        'update all SAP DBs
         Call Application.Run("SAPExecuteCommand", "RefreshData", "ALL")
         DoEvents
     ElseIf main_loop(i) = 2 Then
@@ -107,27 +110,30 @@ Let custom_cutoff.Value = input_cutoff
     Else
         MsgBox "Error on loop " & main_loop(i)
     End If
-    
+
     'call SAP filter refresh sub
     Call loop_filters
-    
+
     'refresh pivots'
     pt.RefreshTable
     pt2.RefreshTable
     DoEvents
-    
-    If xl.WorksheetFunction.IsNA(tables.[total_allmarkets_mtd]) = True Or _
-    xl.WorksheetFunction.IsError(tables.[total_allmarkets_mtd]) = True Then
+
+    If (xl.WorksheetFunction.IsNA([total_allmarkets_mtd]) = True Or _
+    xl.WorksheetFunction.IsError([total_allmarkets_mtd]) = True) Then
         GoTo NAError
     End If
 
   Next i
-  
+
   xl.ScreenUpdating = True
-  
-  weekly_msg = MsgBox("Would you like to run a weekly orders update? (Do NOT run if an update is not out)", vbYesNo)
+
+  weekly_msg = MsgBox("Would you like to run a weekly orders update?" & _
+  "(Do NOT run if an update is not out)", vbYesNo)
     If weekly_msg = vbYes Then
-        weekly_msg_confirm = MsgBox("Are you sure? (This feature is still under testing)", vbYesNo)
+        weekly_msg_confirm = MsgBox("Are you sure?" & vbNewLine & _
+        "N.B: if an update is not available (or already downloaded) and you proceed," _
+        & vbNewLine & "you WILL break the file.", vbYesNo)
             If weekly_msg_confirm = vbYes Then
                 Call weekly
             Else: GoTo Saving
@@ -174,8 +180,11 @@ ErrInput:
     Exit Sub
 
 NAError:
-     MsgBox ("Looks like there is some new reporting unit reporting in ATLAS (or even an unknown mistake in ATLAS source worksheets)." & vbNewLine & vbNewLine & "Please add it in the control panel, save the template and rerun the macro.")
+     MsgBox ("Looks like there is some new reporting unit present in ATLAS" & _
+     "(or even an unknown mistake in ATLAS source worksheets)." & vbNewLine & _
+     vbNewLine & "Please add it in the control panel, save the template and rerun the launcher.")
      Exit Sub
+
 End Sub
 Private Sub loop_filters()
 
@@ -194,7 +203,7 @@ Dim myloop, mainloop As Integer
 Set mytable = ctrl.ListObjects("Parameters")
 paramatersarray = mytable.DataBodyRange
 
-'Now lets loop through the parameters array.
+' Now lets loop through the parameters array.
 ' LBound = Lower Bound, the lowest record number (in this case 1)
 ' UBound = Upper Bound, the highest record number
 
@@ -228,7 +237,7 @@ For mainloop = LBound(paramatersarray) To UBound(paramatersarray)
 
    ' If we find a VARIABLE field, action it.
    If Field_Type = "VARIABLE" Then
-   
+
        result = Application.Run("SAPSetVariable", Field_Field, Field_Value, "INPUT_STRING", Field_Datasource)
 
    End If
@@ -273,9 +282,9 @@ End Sub
 Private Sub copy()
 
     'copy mtd table from yesterday to dtd
-    sheets("Daily Orders_3P_MTD").range("B20:EA242").copy
-    sheets("Daily Orders_3P_DTD").range("B238").PasteSpecial xlPasteValues
-    
+    [month_table].copy
+    [month_table_paste].PasteSpecial xlPasteValues
+
     'copy cutoff date
     With ctrl
         .[today_x_copy].copy
@@ -283,38 +292,36 @@ Private Sub copy()
         .[today_x].copy
         .[today_pasted].PasteSpecial xlPasteValues
     End With
-    
+
     xl.CutCopyMode = False
 
 End Sub
 Public Sub file_save()
 
     Application.ScreenUpdating = False
-        
+
     'State sheet list (array) to be hidden before saving. If sheets names have been changed, just update within the array below
     Dim sheet_list As range
-    Set sheet_list = Worksheets("control panel").[hide_sheets_list]
+    Set sheet_list = [hide_sheets_list]
     Dim sheet_list_val As Variant
     sheet_list_val = sheet_list.Value
-    
-    Worksheets("Daily_Tables").Activate
+
     [tables_A1].Select
     DoEvents
-    
+
     Application.DisplayAlerts = False
     Application.ScreenUpdating = False
-    
+
     'save template
     ThisWorkbook.Save
-    
+
     'Save this workbook on ShareDrive .xlsb
-    Workbooks(ThisWorkbook.Name).SaveAs Filename:= _
-    Worksheets("control panel").[shared_path_name], _
+    Workbooks(ThisWorkbook.Name).SaveAs Filename:=[shared_path_name], _
     FileFormat:=50, CreateBackup:=False
-    
+
     'Get path to user's desktop - this is done through powershell
-    'Dim Path As String
-    'desktop_path = CreateObject("WScript.Shell").SpecialFolders("Desktop") & "\"
+    Dim Path As String
+    desktop_path = CreateObject("WScript.Shell").SpecialFolders("Desktop") & "\"
 
     'Loop for hiding sheets, usually this should remain unchanged
     For Each cl In sheet_list_val
@@ -322,44 +329,43 @@ Public Sub file_save()
             sheets(cl).Visible = False
         End If
     Next cl
-    
-    Worksheets("Daily_Tables").range("A1").Select
+
+    [tables_A1].Select
     Columns("M").EntireColumn.Hidden = True
     Columns("Q").EntireColumn.Hidden = True
-    
+
      'Saves on sharepoint GM&S .xlsx
-    Workbooks(ThisWorkbook.Name).SaveAs Filename:= _
-        Worksheets("control panel").[GMS_SP], _
+    Workbooks(ThisWorkbook.Name).SaveAs Filename:=[GMS_SP], _
         FileFormat:=xlOpenXMLWorkbook, CreateBackup:=False
-    
+
     'Save on users's desktop .xlsx
-    'Workbooks(ThisWorkbook.Name).SaveAs Filename:=desktop_path & Worksheets("control panel").range("AA19") _
-    ', FileFormat:=xlOpenXMLWorkbook, CreateBackup:=False
-    
+    Workbooks(ThisWorkbook.Name).SaveAs Filename:=desktop_path & Worksheets("control panel").range("AA19") _
+    , FileFormat:=xlOpenXMLWorkbook, CreateBackup:=False
+
     tables.Activate
     Application.ScreenUpdating = True
     Application.DisplayAlerts = True
-    
-    MsgBox "Saving completed.. the file now open is the file on the M&S Sharepoint"
-End Sub
-Private Sub weekly()
 
-xl.ScreenUpdating = False
+    MsgBox "Saving completed.. the file now open is the one on your desktop"
+End Sub
+Public Sub weekly()
+
+Application.ScreenUpdating = False
 
 Dim weekly_rng As range
-Set weekly_rng = [period_weekly]
+Set weekly_rng = [latest_weekly]
 
 If Right(weekly_rng.Value, 1) = 1 Then
     weekly_rng = Left(weekly_rng.Value, 6) & 2
     [weekly_period] = [saved_year_short].Value & [saved_month].Value - 1 & " A"
     [weekly_period_item] = "Orders received 3rd part."
-    
+
     ElseIf Right(weekly_rng.Value, 1) = 2 Then
         weekly_rng = Left(weekly_rng.Value, 6) & 3
-        
+
     ElseIf Right(weekly_rng.Value, 1) = 3 Then
         weekly_rng = Left(weekly_rng.Value, 6) & 4
-        
+
     ElseIf Right(weekly_rng.Value, 1) = 4 Then
         weekly_rng = [saved_year_short].Value & [saved_month].Value & " W1"
         [weekly_period] = [saved_year_short].Value & [saved_month].Value - 1 & " W4"
@@ -371,13 +377,12 @@ End If
 ThisWorkbook.Connections([saved_year].Value & "_weekly").Refresh
 
 'using async update for query data
-With xl
-    .CalculateUntilAsyncQueriesDone
-    .CalculateFullRebuild
+With Application
     .CalculateUntilAsyncQueriesDone
     .ScreenUpdating = True
 End With
 
-tables.Activate
+[tables_A1].Select
+
 MsgBox "Weekly orders refreshed"
 End Sub
