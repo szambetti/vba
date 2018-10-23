@@ -1,0 +1,29 @@
+<customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui">
+  <ribbon>
+    <tabs>
+      <tab id="ExportTab" label="EXPORT" insertAfterMso="TabView">
+        <group id="customGroup1" label="ABB">
+
+          <button id="Button1" size="large"
+		          onAction="SplitIntoSectionFiles" label="Split"
+              imageMso="MasterDocumentSplitSubdocuments" screentip="Run macro"
+              supertip="Exports all the current presentation sections into different files to the correct period directory but does NOT break links beforehand" />
+
+          <button id="Button2" label="Break links and split" size="large"
+		          onAction="BreakLinks" imageMso="SaveAll" screentip="Run macro"
+              supertip="Exports all the current presentation sections into different files to the correct period directory AND breaks links beforehand"/>
+
+
+          <button id="Button3" label="Update links" size="large"
+		          onAction="UpdateLinks" imageMso="PivotRefresh" screentip="Run macro"
+              supertip="Updates all links in presentation - initial dialogue when file is opened is to be preferred"/>
+
+        </group>
+	       <group id="customGroup2" label="Read me">
+		          <button id="Button4" label="Help" onAction="help" imageMso="Help"
+                      screentip="Any doubts?" supertip="General tips on how to link worksheets / maintain the presentation"/>
+         </group>
+      </tab>
+    </tabs>
+  </ribbon>
+</customUI>
