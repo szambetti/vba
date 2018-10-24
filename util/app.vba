@@ -1,14 +1,13 @@
-'changes quickly alerts, status and screenupdating
-Function app(x As Boolean) As Application
+Private Sub app(ByVal x As Boolean)
 
 With Application
+    If x = False Then
+     .StatusBar = "Macro running... Please wait"
+    Else
+     .StatusBar = Not (x)
+    End If
     .ScreenUpdating = x
     .DisplayAlerts = x
-    If x = true Then
-      .status = "Macro running... Please wait"
-    Else
-     .status = x
-    End If
 End With
 
-End Function
+End Sub

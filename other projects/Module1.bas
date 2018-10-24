@@ -1,4 +1,5 @@
 Attribute VB_Name = "Module1"
+
 Sub SplitIntoFiles()
 
 Dim ws, ws1 As Worksheet, yymm, WbStr, wbpath As String
@@ -6,7 +7,7 @@ Const xl_ext = ".xlsx"
 
 Let yymm = Format(Date, "yy") & Format(Date, "mm")
 
-app (False)
+Call app(False)
 
 With ThisWorkbook
     .Save
@@ -33,7 +34,7 @@ With ThisWorkbook
     Next ws
 End With
 
-app (True)
+Call app(True)
 
 MsgBox "Master successfully split into the regions in the " & yymm & " subfolder."
 
@@ -52,16 +53,16 @@ End If
 
 End Function
 
-Function app(x As Boolean) As Application
+Private Sub app(ByVal x As Boolean)
 
 With Application
+    If x = False Then
+     .StatusBar = "Macro running... Please wait"
+    Else
+     .StatusBar = x
+    End If
     .ScreenUpdating = x
     .DisplayAlerts = x
-    If x = true Then
-      .status = "Macro running... Please wait"
-    Else
-     .status = x
-    End If
 End With
 
-End Function
+End Sub
