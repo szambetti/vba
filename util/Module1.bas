@@ -43,14 +43,10 @@ Function exist(ByVal x As String) As Boolean
 If x Like "*.*" Then
     If Len(Dir(x)) > 0 Then
         exist = True
-    Else
-        exist = False
     End If
 Else
     If Len(Dir(x, vbDirectory)) > 0 Then
         exist = True
-    Else
-        exist = False
     End If
 End If
 
@@ -61,6 +57,11 @@ Function app(x As Boolean) As Application
 With Application
     .ScreenUpdating = x
     .DisplayAlerts = x
+    If x = true Then
+      .status = "Macro running... Please wait"
+    Else
+     .status = x
+    End If
 End With
 
 End Function
