@@ -12,7 +12,7 @@ With Application
             .statusbar = StatusbarStr
         End If
     Else
-        .statusbar = Not (x)
+        .statusbar = False
     End If
     .ScreenUpdating = x
     .DisplayAlerts = x
