@@ -8,7 +8,7 @@ Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = True
 'As soon as the workbook is opened, it checks for the Analysis COMAddIn.
-'If it finds Analysis and thinks it isnâ€™t enabled, it enables it.
+'If it finds Analysis and thinks it isn’t enabled, it enables it.
 'If it finds Analysis and thinks its already enabled, it disables it first then re-enables it to make doubly sure its going to function ok.'
 Private Sub Workbook_Open()
 ThisWorkbook.Worksheets("Daily_Tables").Activate
@@ -17,13 +17,12 @@ ThisWorkbook.Worksheets("Daily_Tables").Activate
 'Temp file is creaded by launch.exe in Daily orders Source file directory
 'if this file exists, then it must mean user has opened this file through the launcher
 'if so then start generation prcodedure
-If Len(Dir(ThisWorkbook.Path & "\" & "$start_macro.sz")) <> 0 Then
+If exist(ThisWorkbook.Path & "\" & "$start_macro.sz", file) = True Then
 
-    Application.statusbar = "Enabling analysis... please wait"
     [state_rng] = "Enabling analysis..."
     [progressbar_rng] = 0
     DoEvents
-    Application.ScreenUpdating = False
+    Call freeze(True, "Making sure ANALYSIS plugin is working correctly... please wait")
 
     Dim lResult As Long
     Dim addin As COMAddIn
@@ -41,30 +40,31 @@ If Len(Dir(ThisWorkbook.Path & "\" & "$start_macro.sz")) <> 0 Then
         End If
     Next
 
-Application.ScreenUpdating = True
+
 [state_rng] = "Idle"
 [progressbar_rng] = 0.05
-Application.statusbar = False
-
+Call freeze(False)
+    
     Call start_form(False)
-
+    
     If uinput = 0 Then
         Call start_form(True)
-        Call main
+        Call Main
     ElseIf uinput = 1 Then
         Call start_form(True)
     Else
         Call start_form(True)
         Call month_settings_display
         DoEvents
-        Call main
+        Call Main
+        Call freeze(False)
         Exit Sub
     End If
 Exit Sub
 continue:
     [state_rng] = "Idle"
     [progressbar_rng] = 0.05
-    Application.statusbar = False
+    Call freeze(False)
     MsgBox ("Error, analysis could not be enabled automatically... please do so manually")
 Else: Exit Sub
 End If
@@ -89,3 +89,4 @@ form.Show
 Unload form
 Set form = Nothing
 End Sub
+

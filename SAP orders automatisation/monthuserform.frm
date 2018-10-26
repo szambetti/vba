@@ -15,19 +15,23 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 
 Private Sub CommandButton5_Click()
-Call firstdayofthemonth_samequarter
+Call NewMonth_Main(SameQuarter)
 Hide
 End Sub
 
 Private Sub CommandButton6_Click()
-Call firstdayofthemonth_newquarter
+Call NewMonth_Main(NewQuarter)
 Hide
 End Sub
 
 Private Sub CommandButton7_Click()
-Call erase_data
+Call EraseCopiedData
 End Sub
 
 Private Sub CommandButton8_Click()
 Hide
+End Sub
+
+Private Sub Label3_Click()
+
 End Sub

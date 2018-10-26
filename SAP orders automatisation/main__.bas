@@ -1,4 +1,4 @@
-Attribute VB_Name = "AO"
+Attribute VB_Name = "main__"
 'declarations
 
 'global variables
@@ -8,10 +8,7 @@ Public uinput As Integer
 Private custom_cutoff, cutoff, statusbar_rng, progress_rng As range, ctrl, tables As Worksheet, xl As Excel.Application, wb As Workbook
 Private pt2, pt As PivotTable, progressbar, main_loop, input_cutoff, k As Integer, notcorrect As String, lResult As Long
 Dim state, inputsave As Variant
-'+= type function
-Public Function Inc(ByRef x As Integer) As Integer
-   x = x + 1
-End Function
+'update progressbar
 Public Sub infostatus(ByRef k As Integer)
     xl.ScreenUpdating = True
     Inc k
@@ -27,7 +24,7 @@ Public Sub infostatus(ByRef k As Integer)
     DoEvents
     xl.ScreenUpdating = False
 End Sub
-Public Sub main()
+Public Sub Main()
 
 'declare above
 Set xl = Excel.Application
@@ -47,6 +44,7 @@ Let main_loop = Array(1, 2)
 
 'begin user interface
 Let k = 0
+Call freeze(True)
 Call infostatus(k)
 
 ' get custom cutoff from user
@@ -87,11 +85,8 @@ Let custom_cutoff.Value = input_cutoff
             .[today_x_copy].copy
             .[saved_month].PasteSpecial xlPasteValues
           End With
-        With xl
-            .CutCopyMode = False
-            .statusbar = "Running. Please stay idle..."
-            DoEvents
-        End With
+        xl.CutCopyMode = False
+        DoEvents
         Call infostatus(k)
         'update all SAP DBs
         Call Application.Run("SAPExecuteCommand", "RefreshData", "ALL")
@@ -103,37 +98,37 @@ Let custom_cutoff.Value = input_cutoff
         Else
             cutoff = custom_cutoff.Value
         End If
-        With ctrl
-          .[cutoff].Value = cutoff
-        End With
+        ctrl.[cutoff].Value = cutoff
         Call copy
     Else
         MsgBox "Error on loop " & main_loop(i)
     End If
-
+    
     'call SAP filter refresh sub
     Call loop_filters
-
+    
     'refresh pivots'
     pt.RefreshTable
     pt2.RefreshTable
     DoEvents
-
-    If (xl.WorksheetFunction.IsNA([total_allmarkets_mtd]) = True Or _
-    xl.WorksheetFunction.IsError([total_allmarkets_mtd]) = True) Then
+    
+    'checks if mistake is present in atlas
+    If (xl.WorksheetFunction.IsNA(tables.[total_allmarkets_mtd]) = True Or _
+    xl.WorksheetFunction.IsError(tables.[total_allmarkets_mtd]) = True) Then
         GoTo NAError
     End If
 
   Next i
-
-  xl.ScreenUpdating = True
-
-  weekly_msg = MsgBox("Would you like to run a weekly orders update?" & _
+  
+  Call freeze(False)
+  
+  'weekly orders prompt
+  weekly_msg = MsgBox("Would you like to run a weekly orders update?" & vbNewLine & _
   "(Do NOT run if an update is not out)", vbYesNo)
     If weekly_msg = vbYes Then
         weekly_msg_confirm = MsgBox("Are you sure?" & vbNewLine & _
-        "N.B: if an update is not available (or already downloaded) and you proceed," _
-        & vbNewLine & "you WILL break the file.", vbYesNo)
+        "N.B: if an update is not available (or already downloaded) and you proceed, " & _
+        "you WILL break the file.", vbYesNo)
             If weekly_msg_confirm = vbYes Then
                 Call weekly
             Else: GoTo Saving
@@ -151,10 +146,6 @@ Saving:
     vbYesNo, "Daily orders generator")
         Select Case inputsave
             Case vbYes
-                With xl
-                    .ScreenUpdating = True
-                    .statusbar = False
-                End With
                 Call file_save
                 Call infostatus(5)
                 GoTo OpenChrome
@@ -162,10 +153,6 @@ Saving:
             Case Else
                 Call infostatus(5)
         End Select
-    With xl
-        .ScreenUpdating = True
-        .statusbar = False
-    End With
     Exit Sub
 
 OpenChrome:
@@ -173,6 +160,7 @@ OpenChrome:
     Dim Path As String
     Path = "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
     open_chrome = Shell(Path, vbNormalFocus)
+    Call freeze(False)
     Exit Sub
 
 ErrInput:
@@ -182,9 +170,9 @@ ErrInput:
 NAError:
      MsgBox ("Looks like there is some new reporting unit present in ATLAS" & _
      "(or even an unknown mistake in ATLAS source worksheets)." & vbNewLine & _
-     vbNewLine & "Please add it in the control panel, save the template and rerun the launcher.")
+     vbNewLine & "Please fix it in the control panel or ATLAS_Daily, save the template and rerun the launcher.")
      Exit Sub
-
+     
 End Sub
 Private Sub loop_filters()
 
@@ -237,7 +225,7 @@ For mainloop = LBound(paramatersarray) To UBound(paramatersarray)
 
    ' If we find a VARIABLE field, action it.
    If Field_Type = "VARIABLE" Then
-
+   
        result = Application.Run("SAPSetVariable", Field_Field, Field_Value, "INPUT_STRING", Field_Datasource)
 
    End If
@@ -284,7 +272,7 @@ Private Sub copy()
     'copy mtd table from yesterday to dtd
     [month_table].copy
     [month_table_paste].PasteSpecial xlPasteValues
-
+    
     'copy cutoff date
     With ctrl
         .[today_x_copy].copy
@@ -292,33 +280,31 @@ Private Sub copy()
         .[today_x].copy
         .[today_pasted].PasteSpecial xlPasteValues
     End With
-
+    
     xl.CutCopyMode = False
 
 End Sub
 Public Sub file_save()
-
-    Application.ScreenUpdating = False
-
+        
     'State sheet list (array) to be hidden before saving. If sheets names have been changed, just update within the array below
     Dim sheet_list As range
     Set sheet_list = [hide_sheets_list]
     Dim sheet_list_val As Variant
     sheet_list_val = sheet_list.Value
-
+    
     [tables_A1].Select
     DoEvents
-
-    Application.DisplayAlerts = False
-    Application.ScreenUpdating = False
-
+    
+    Call freeze(True, "Saving daily report...")
+    
+    With ThisWorkbook
     'save template
-    ThisWorkbook.Save
-
+    .Save
+    
     'Save this workbook on ShareDrive .xlsb
-    Workbooks(ThisWorkbook.Name).SaveAs Filename:=[shared_path_name], _
+    .SaveAs Filename:=[shared_path_name], _
     FileFormat:=50, CreateBackup:=False
-
+    
     'Get path to user's desktop - this is done through powershell
     Dim Path As String
     desktop_path = CreateObject("WScript.Shell").SpecialFolders("Desktop") & "\"
@@ -329,60 +315,61 @@ Public Sub file_save()
             sheets(cl).Visible = False
         End If
     Next cl
-
+    
     [tables_A1].Select
     Columns("M").EntireColumn.Hidden = True
     Columns("Q").EntireColumn.Hidden = True
-
-     'Saves on sharepoint GM&S .xlsx
-    Workbooks(ThisWorkbook.Name).SaveAs Filename:=[GMS_SP], _
-        FileFormat:=xlOpenXMLWorkbook, CreateBackup:=False
-
-    'Save on users's desktop .xlsx
-    Workbooks(ThisWorkbook.Name).SaveAs Filename:=desktop_path & Worksheets("control panel").range("AA19") _
-    , FileFormat:=xlOpenXMLWorkbook, CreateBackup:=False
-
+    
+         'Saves on sharepoint GM&S .xlsx
+        .SaveAs Filename:=[GMS_SP], _
+            FileFormat:=xlOpenXMLWorkbook, CreateBackup:=False
+        
+        'Save on users's desktop .xlsx
+        .SaveAs Filename:=desktop_path & Worksheets("control panel").range("AA19") _
+        , FileFormat:=xlOpenXMLWorkbook, CreateBackup:=False
+    End With
+    
+    
     tables.Activate
-    Application.ScreenUpdating = True
-    Application.DisplayAlerts = True
-
+    Call freeze(False)
+    
     MsgBox "Saving completed.. the file now open is the one on your desktop"
 End Sub
 Public Sub weekly()
 
-Application.ScreenUpdating = False
+Call freeze(True)
 
 Dim weekly_rng As range
 Set weekly_rng = [latest_weekly]
 
 If Right(weekly_rng.Value, 1) = 1 Then
     weekly_rng = Left(weekly_rng.Value, 6) & 2
-    [weekly_period] = [saved_year_short].Value & [saved_month].Value - 1 & " A"
+    [weekly_period] = [last_month].Value & " A"
     [weekly_period_item] = "Orders received 3rd part."
-
+    
     ElseIf Right(weekly_rng.Value, 1) = 2 Then
         weekly_rng = Left(weekly_rng.Value, 6) & 3
-
+        
     ElseIf Right(weekly_rng.Value, 1) = 3 Then
         weekly_rng = Left(weekly_rng.Value, 6) & 4
-
-    ElseIf Right(weekly_rng.Value, 1) = 4 Then
-        weekly_rng = [saved_year_short].Value & [saved_month].Value & " W1"
-        [weekly_period] = [saved_year_short].Value & [saved_month].Value - 1 & " W4"
+        
+    ElseIf Right(weekly_rng.Value, 1) = "-" Then
+        weekly_rng = [this_month].Value & " W1"
+        [weekly_period] = [last_month].Value & " W4"
         [weekly_period_item] = "Orders received gross 3rd part."
     Else
         MsgBox "An error occured in the weekly update macro, could not parse period"
 End If
 
-ThisWorkbook.Connections([saved_year].Value & "_weekly").Refresh
-
 'using async update for query data
-With Application
-    .CalculateUntilAsyncQueriesDone
-    .ScreenUpdating = True
-End With
+ThisWorkbook.Connections([saved_year].Value & "_weekly").Refresh
+Application.CalculateUntilAsyncQueriesDone
+
 
 [tables_A1].Select
 
+Call freeze(False)
 MsgBox "Weekly orders refreshed"
 End Sub
+
+
