@@ -2,11 +2,11 @@ Attribute VB_Name = "main__"
 'declarations
 
 'global variables
-Public uinput As Integer
+Public uinput As Integer, defaultsuggest, weeklyinputbox As String
 
 'local variables
 Private custom_cutoff, cutoff, statusbar_rng, progress_rng As range, ctrl, tables As Worksheet, xl As Excel.Application, wb As Workbook
-Private pt2, pt As PivotTable, progressbar, main_loop, input_cutoff, k As Integer, notcorrect As String, lResult As Long
+Private pt3, pt2, pt As PivotTable, progressbar, main_loop, input_cutoff, k As Integer, notcorrect As String, lResult As Long
 Dim state, inputsave As Variant
 'update progressbar
 Public Sub infostatus(ByRef k As Integer)
@@ -38,9 +38,15 @@ Set statusbar_rng = tables.[state_rng]
 Set progress_rng = tables.[progressbar_rng]
 Set pt = wb.sheets("Pivot_Daily Orders").PivotTables("BigPivot")
 Set pt2 = wb.sheets("Pivot_Daily Orders").PivotTables("SmallPivot")
-Let state = Array("Running...", "Updating ATLAS", _
+Set pt3 = wb.sheets("Pivot_Daily Orders Supply").PivotTables("PivotSupply")
+Let state = array("Running...", "Updating ATLAS", _
             "Refreshing Filters", "Changing pivots", "Saving", "Finished")
-Let main_loop = Array(1, 2)
+Let main_loop = array(1, 2)
+
+'checks declare
+Dim checktable As ListObject, checkarray As Variant, b As Integer
+Set checktable = ctrl.ListObjects("TableChecks")
+checkarray = checktable.DataBodyRange
 
 'begin user interface
 Let k = 0
@@ -110,14 +116,22 @@ Let custom_cutoff.Value = input_cutoff
     'refresh pivots'
     pt.RefreshTable
     pt2.RefreshTable
+    pt3.RefreshTable
     DoEvents
     
-    'checks if mistake is present in atlas
+    'checks
     If (xl.WorksheetFunction.IsNA(tables.[total_allmarkets_mtd]) = True Or _
     xl.WorksheetFunction.IsError(tables.[total_allmarkets_mtd]) = True) Then
         GoTo NAError
     End If
 
+    For b = LBound(checkarray) To UBound(checkarray)
+        If checkarray(b, 1) <> "ok" Then
+            GoTo NAError
+            Exit For
+        End If
+    Next b
+    
   Next i
   
   Call freeze(False)
@@ -126,14 +140,43 @@ Let custom_cutoff.Value = input_cutoff
   weekly_msg = MsgBox("Would you like to run a weekly orders update?" & vbNewLine & _
   "(Do NOT run if an update is not out)", vbYesNo)
     If weekly_msg = vbYes Then
-        weekly_msg_confirm = MsgBox("Are you sure?" & vbNewLine & _
-        "N.B: if an update is not available (or already downloaded) and you proceed, " & _
-        "you WILL break the file.", vbYesNo)
-            If weekly_msg_confirm = vbYes Then
+    
+        Dim weekly_rng As range
+        Set weekly_rng = [latest_weekly]
+        
+        'get period suggestion
+        If Right(weekly_rng.Value, 1) = 1 Then
+            defaultsuggest = Left(weekly_rng.Value, 6) & 2
+            
+            ElseIf Right(weekly_rng.Value, 1) = 2 Then
+                defaultsuggest = Left(weekly_rng.Value, 6) & 3
+                
+            ElseIf Right(weekly_rng.Value, 1) = 3 Then
+                defaultsuggest = Left(weekly_rng.Value, 6) & 4
+                
+            ElseIf Right(weekly_rng.Value, 1) = "-" Then
+                defaultsuggest = Left([this_month].Value, 4) & " W1"
+
+            Else
+                defaultsuggest = "Could not parse period... please specify it manually"
+        End If
+        
+weeklyerror:
+        weeklyinputbox = InputBox("Are you sure?" & vbNewLine & _
+        "N.B: if an update is not available (or has already been downloaded) and you proceed, " & _
+        "you WILL break the file. The update will be run from " & weekly_rng.Value & " to " & defaultsuggest & "." & vbNewLine & _
+        "Please confirm or change the suggested period below:", "Weekly orders", defaultsuggest)
+        
+            If Len(weeklyinputbox) = 7 Then
                 Call weekly
-            Else: GoTo Saving
+            ElseIf weeklyinputbox = "" Then GoTo Saving
+            Else
+                MsgBox "Your input could not be recognised.. please try again"
+                GoTo weeklyerror
             End If
-    Else: GoTo Saving
+            
+    Else
+        GoTo Saving
     End If
 
   Call infostatus(k)
@@ -141,14 +184,15 @@ Let custom_cutoff.Value = input_cutoff
 ' goto references
 
 Saving:
+    Call infostatus(4)
     inputsave = MsgBox("Report generated." & vbNewLine & vbNewLine & _
     "Would you like to save on ShareDrive," & vbNewLine & "SharePoint EPMS and on your desktop this report?", _
     vbYesNo, "Daily orders generator")
         Select Case inputsave
             Case vbYes
-                Call file_save
                 Call infostatus(5)
-                GoTo OpenChrome
+                Call file_save
+                'GoTo OpenChrome 'no need to send report on whatsapp anymore
                 Exit Sub
             Case Else
                 Call infostatus(5)
@@ -320,12 +364,16 @@ Public Sub file_save()
     Columns("M").EntireColumn.Hidden = True
     Columns("Q").EntireColumn.Hidden = True
     
-         'Saves on sharepoint GM&S .xlsx
+    'save BP ws as values as requested by Damiano
+    Worksheets("EPBP_Daily").[EPBP_daily_table].copy
+    Worksheets("EPBP_Daily").[EPBP_daily_table].PasteSpecial xlPasteValues
+    
+         'Saves on sharepoint GM&S .xlsb
         .SaveAs Filename:=[GMS_SP], _
-            FileFormat:=xlOpenXMLWorkbook, CreateBackup:=False
+            FileFormat:=50, CreateBackup:=False
         
         'Save on users's desktop .xlsx
-        .SaveAs Filename:=desktop_path & Worksheets("control panel").range("AA19") _
+        '.SaveAs Filename:=desktop_path & Worksheets("control panel").range("AA19") _
         , FileFormat:=xlOpenXMLWorkbook, CreateBackup:=False
     End With
     
@@ -342,34 +390,59 @@ Call freeze(True)
 Dim weekly_rng As range
 Set weekly_rng = [latest_weekly]
 
-If Right(weekly_rng.Value, 1) = 1 Then
-    weekly_rng = Left(weekly_rng.Value, 6) & 2
-    [weekly_period] = [last_month].Value & " A"
-    [weekly_period_item] = "Orders received 3rd part."
-    
-    ElseIf Right(weekly_rng.Value, 1) = 2 Then
-        weekly_rng = Left(weekly_rng.Value, 6) & 3
+'act on file
+
+If weeklyinputbox = defaultsuggest Then
+    If Right(weekly_rng.Value, 1) = 1 Then
+        weekly_rng = Left(weekly_rng.Value, 6) & 2
+        [weekly_period] = Left([last_month].Value, 4) & " A"
+        [weekly_period_item] = "Orders received 3rd part."
         
-    ElseIf Right(weekly_rng.Value, 1) = 3 Then
-        weekly_rng = Left(weekly_rng.Value, 6) & 4
+        ElseIf Right(weekly_rng.Value, 1) = 2 Then
+            weekly_rng = Left(weekly_rng.Value, 6) & 3
+            
+        ElseIf Right(weekly_rng.Value, 1) = 3 Then
+            weekly_rng = Left(weekly_rng.Value, 6) & 4
+            
+        ElseIf Right(weekly_rng.Value, 1) = "-" Then
+            weekly_rng = Left([this_month].Value, 4) & " W1"
+            [weekly_period] = Left([last_month].Value, 4) & " W4"
+            [weekly_period_item] = "Orders received gross 3rd part."
+        Else
+            MsgBox "An error occured in the weekly update macro, could not parse period"
+    End If
+Else
+    If Right(weeklyinputbox, 1) = 2 Then
+        weekly_rng = weeklyinputbox
+        [weekly_period] = Left(weeklyinputbox, 4) & " A"
+        [weekly_period_item] = "Orders received 3rd part."
         
-    ElseIf Right(weekly_rng.Value, 1) = "-" Then
-        weekly_rng = [this_month].Value & " W1"
-        [weekly_period] = [last_month].Value & " W4"
-        [weekly_period_item] = "Orders received gross 3rd part."
-    Else
-        MsgBox "An error occured in the weekly update macro, could not parse period"
+        ElseIf Right(weeklyinputbox, 1) = 3 Then
+            weekly_rng = weeklyinputbox
+            
+        ElseIf Right(weeklyinputbox, 1) = 4 Then
+            weekly_rng = weeklyinputbox
+            
+        ElseIf Right(weeklyinputbox, 1) = 1 Then
+            weekly_rng = weeklyinputbox
+            [weekly_period] = Left(weeklyinputbox, 4) & " W4"
+            [weekly_period_item] = "Orders received gross 3rd part."
+        Else
+            MsgBox "An error occured in the weekly update macro, could not parse period"
+    End If
 End If
+    
 
 'using async update for query data
 ThisWorkbook.Connections([saved_year].Value & "_weekly").Refresh
+MsgBox "Refreshing weekly abacus... this will take a while"
 Application.CalculateUntilAsyncQueriesDone
-
 
 [tables_A1].Select
 
 Call freeze(False)
 MsgBox "Weekly orders refreshed"
+
 End Sub
 
 

@@ -1,8 +1,8 @@
 Attribute VB_Name = "NewMonth"
 'STILL BETA
 Public Enum quarter
- NewQuarter = 0
- SameQuarter = 1
+    NewQuarter
+    SameQuarter
 End Enum
 
 Public Sub NewMonth_Main(x As quarter)
@@ -63,8 +63,6 @@ Next j
 
 [latest_weekly] = Left([this_month].Value, 4) & " W-"
 [weekly_period] = Left([last_month].Value, 4) & " -"
-ThisWorkbook.Connections([saved_year].Value & "_weekly").Refresh
-Application.CalculateUntilAsyncQueriesDone
     
 'Distincts between new and same quarter, as they require different data approaches
 If x = NewQuarter Then
@@ -134,11 +132,19 @@ Public Sub EraseCopiedData()
         End If
     Next i
     
-    ThisWorkbook.Connections([saved_year].Value & "_demand").Refresh
-    Application.CalculateUntilAsyncQueriesDone
+    Dim question As Variant
+    question = MsgBox("Updating ABACUS this will take a long time. Would you like to update it now " & _
+    "or would you prefer to do it later yourself?", vbYesNo)
     
+    If question = vbYes Then
+        ThisWorkbook.Connections([saved_year].Value & "_demand").Refresh
+        ThisWorkbook.Connections([saved_year].Value & "_main").Refresh
+        Application.CalculateUntilAsyncQueriesDone
+        MsgBox "Done !" & vbNewLine & "Data erased and abacus demand connections refreshed."
+    Else
+        MsgBox "Done !" & vbNewLine & "Data erased, ABACUS was NOT refreshed."
+    End If
+        
     Call freeze(False)
-
-    MsgBox "Data erased and abacus demand connections refreshed."
     
 End Sub
